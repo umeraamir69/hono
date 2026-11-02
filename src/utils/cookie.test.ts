@@ -313,6 +313,53 @@ describe('Set cookie', () => {
     )
   })
 
+  it('Should serialize __Http- cookie with Secure and HttpOnly', () => {
+    const serialized = serialize('__Http-great_cookie', 'banana', {
+      path: '/',
+      secure: true,
+      httpOnly: true,
+    })
+    expect(serialized).toBe('__Http-great_cookie=banana; Path=/; HttpOnly; Secure')
+  })
+
+  it('Should throw for __Http- cookie without HttpOnly', () => {
+    expect(() => {
+      serialize('__Http-great_cookie', 'banana', {
+        path: '/',
+        secure: true,
+      } as any)
+    }).toThrowError('__Http- Cookie must have HttpOnly attributes')
+  })
+
+  it('Should serialize __Host-Http- cookie with all valid options', () => {
+    const serialized = serialize('__Host-Http-great_cookie', 'banana', {
+      path: '/',
+      secure: true,
+      httpOnly: true,
+    })
+    expect(serialized).toBe('__Host-Http-great_cookie=banana; Path=/; HttpOnly; Secure')
+  })
+
+  it('Should throw for __Host-Http- cookie without HttpOnly', () => {
+    expect(() => {
+      serialize('__Host-Http-great_cookie', 'banana', {
+        path: '/',
+        secure: true,
+      } as any)
+    }).toThrowError('__Host-Http- Cookie must have HttpOnly attributes')
+  })
+
+  it('Should throw for __Host-Http- cookie with Domain', () => {
+    expect(() => {
+      serialize('__Host-Http-great_cookie', 'banana', {
+        path: '/',
+        secure: true,
+        httpOnly: true,
+        domain: 'example.com',
+      } as any)
+    }).toThrowError('__Host-Http- Cookie must not have Domain attributes')
+  })
+
   it('Should serialize a signed cookie', async () => {
     const secret = 'secret chocolate chips'
     const serialized = await serializeSigned('delicious_cookie', 'macha', secret)
