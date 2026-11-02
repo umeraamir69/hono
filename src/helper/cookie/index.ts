@@ -35,6 +35,10 @@ export const getCookie: GetCookie = (c, key?, prefix?: CookiePrefixOptions) => {
       finalKey = '__Secure-' + key
     } else if (prefix === 'host') {
       finalKey = '__Host-' + key
+    } else if (prefix === 'http') {
+      finalKey = '__Http-' + key
+    } else if (prefix === 'host-http') {
+      finalKey = '__Host-Http-' + key
     }
     const obj = parse(cookie, finalKey)
     return obj[finalKey]
@@ -63,6 +67,10 @@ export const getSignedCookie: GetSignedCookie = async (
       finalKey = '__Secure-' + key
     } else if (prefix === 'host') {
       finalKey = '__Host-' + key
+    } else if (prefix === 'http') {
+      finalKey = '__Http-' + key
+    } else if (prefix === 'host-http') {
+      finalKey = '__Host-Http-' + key
     }
     const obj = await parseSigned(cookie, secret, finalKey)
     return obj[finalKey]
@@ -79,6 +87,7 @@ export const generateCookie = (name: string, value: string, opt?: CookieOptions)
   // Cookie names prefixed with __Secure- can be used only if they are set with the secure attribute.
   // Cookie names prefixed with __Host- can be used only if they are set with the secure attribute, must have a path of / (meaning any path at the host)
   // and must not have a Domain attribute.
+  // __Http- requires Secure + HttpOnly; __Host-Http- is __Host- plus HttpOnly.
   // Read more at https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#cookie_prefixes'
   let cookie
   if (opt?.prefix === 'secure') {
@@ -88,6 +97,21 @@ export const generateCookie = (name: string, value: string, opt?: CookieOptions)
       ...opt,
       path: '/',
       secure: true,
+      domain: undefined,
+    })
+  } else if (opt?.prefix === 'http') {
+    cookie = serialize('__Http-' + name, value, {
+      path: '/',
+      ...opt,
+      secure: true,
+      httpOnly: true,
+    })
+  } else if (opt?.prefix === 'host-http') {
+    cookie = serialize('__Host-Http-' + name, value, {
+      ...opt,
+      path: '/',
+      secure: true,
+      httpOnly: true,
       domain: undefined,
     })
   } else {
@@ -119,6 +143,21 @@ export const generateSignedCookie = async (
       ...opt,
       path: '/',
       secure: true,
+      domain: undefined,
+    })
+  } else if (opt?.prefix === 'http') {
+    cookie = await serializeSigned('__Http-' + name, value, secret, {
+      path: '/',
+      ...opt,
+      secure: true,
+      httpOnly: true,
+    })
+  } else if (opt?.prefix === 'host-http') {
+    cookie = await serializeSigned('__Host-Http-' + name, value, secret, {
+      ...opt,
+      path: '/',
+      secure: true,
+      httpOnly: true,
       domain: undefined,
     })
   } else {
