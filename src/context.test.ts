@@ -636,3 +636,20 @@ describe('c.render', () => {
     expect(await res.text()).toBe('<html><head>title</head><body><h1>content</h1></body></html>')
   })
 })
+
+describe('Context #newResponse after encoded response (#5612)', () => {
+  it('drops Content-Encoding when building a new body from c.json()', async () => {
+    const c = new Context(new Request('http://localhost/'))
+    c.res = new Response('x'.repeat(100), {
+      headers: {
+        'Content-Encoding': 'gzip',
+        'Content-Type': 'text/plain',
+        'Content-Length': '100',
+      },
+    })
+    const res = c.json({ error: 'failed' }, 500)
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Content-Encoding')).toBeNull()
+    expect(await res.json()).toEqual({ error: 'failed' })
+  })
+})

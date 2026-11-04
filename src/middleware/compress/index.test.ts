@@ -533,3 +533,21 @@ async function decompressResponse(res: Response): Promise<string> {
   const decompressedResponse = new Response(decompressedStream)
   return await decompressedResponse.text()
 }
+
+describe('Compress + onError (#5612)', () => {
+  it('does not leave Content-Encoding on an onError JSON body after compress ran', async () => {
+    const app = new Hono()
+    app.onError((_err, c) => c.json({ error: 'failed' }, 500))
+    app.use(async (_c, next) => {
+      await next()
+      throw new Error('failed after the route responded')
+    })
+    app.use(compress())
+    app.get('/', (c) => c.text('x'.repeat(4096)))
+
+    const res = await app.request('/', { headers: { 'Accept-Encoding': 'gzip' } })
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Content-Encoding')).toBeNull()
+    expect(await res.json()).toEqual({ error: 'failed' })
+  })
+})
