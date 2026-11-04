@@ -298,7 +298,22 @@ export const cache = (options: {
     const cacheName =
       typeof options.cacheName === 'function' ? await options.cacheName(c) : options.cacheName
     const cache = await caches.open(cacheName)
-    const response = await cache.match(key)
+    // Forward conditional validators so Cache API implementations that honor
+    // If-None-Match / If-Modified-Since (e.g. Cloudflare) can return 304 (#5574).
+    const ifNoneMatch = c.req.raw.headers.get('If-None-Match')
+    const ifModifiedSince = c.req.raw.headers.get('If-Modified-Since')
+    let matchKey: string | Request = key
+    if (ifNoneMatch || ifModifiedSince) {
+      const matchHeaders = new Headers()
+      if (ifNoneMatch) {
+        matchHeaders.set('If-None-Match', ifNoneMatch)
+      }
+      if (ifModifiedSince) {
+        matchHeaders.set('If-Modified-Since', ifModifiedSince)
+      }
+      matchKey = new Request(key, { headers: matchHeaders })
+    }
+    const response = await cache.match(matchKey)
     if (response) {
       return new Response(response.body, response)
     }

@@ -16,7 +16,9 @@ class MockCache {
   }
 
   async match(key: Request | string): Promise<Response | null> {
-    return this.store.get(key) || null
+    // Cache API matches by URL; Request keys must resolve to the stored string URL.
+    const lookup = typeof key === 'string' ? key : key.url
+    return this.store.get(lookup) || this.store.get(key) || null
   }
 
   async keys() {
@@ -431,11 +433,39 @@ describe('Cache Middleware', () => {
   })
 })
 
+
+describe('Cache conditional requests (#5574)', () => {
+  it('forwards If-None-Match to cache.match so a 304 can be returned', async () => {
+    const match = vi.fn(async (key: string | Request) => {
+      expect(key).toBeInstanceOf(Request)
+      expect((key as Request).headers.get('If-None-Match')).toBe('"abc"')
+      return new Response(null, { status: 304, headers: { ETag: '"abc"' } })
+    })
+    vi.stubGlobal('caches', {
+      open: vi.fn().mockResolvedValue({
+        match,
+        put: vi.fn(),
+        keys: vi.fn().mockResolvedValue([]),
+      }),
+    })
+    const app = new Hono()
+    app.use('*', cache({ cacheName: 'etag-test', wait: true }))
+    app.get('/', (c) => c.text('fresh'))
+    const res = await app.request('/', { headers: { 'If-None-Match': '"abc"' } })
+    expect(res.status).toBe(304)
+    expect(match).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
+  })
+})
+
 describe('Cache Skipping Logic', () => {
   const stubStoreBackedCache = () => {
     const store = new Map<string | Request, Response>()
     const mockCache = {
-      match: vi.fn((key: string | Request) => Promise.resolve(store.get(key)?.clone())),
+      match: vi.fn((key: string | Request) => {
+        const lookup = typeof key === 'string' ? key : key.url
+        return Promise.resolve((store.get(lookup) || store.get(key))?.clone())
+      }),
       put: vi.fn((key: string | Request, response: Response) => {
         store.set(key, response.clone())
         return Promise.resolve()
