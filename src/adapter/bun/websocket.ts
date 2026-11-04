@@ -20,6 +20,7 @@ export interface BunWebSocketHandler<T> {
   open(ws: BunServerWebSocket<T>): void
   close(ws: BunServerWebSocket<T>, code?: number, reason?: string): void
   message(ws: BunServerWebSocket<T>, message: string | { buffer: ArrayBufferLike }): void
+  error(ws: BunServerWebSocket<T>, error: Error): void
 }
 interface CreateWebSocket<T> {
   upgradeWebSocket: UpgradeWebSocket<T>
@@ -113,6 +114,17 @@ export const websocket: BunWebSocketHandler<BunWebSocketData> = {
         typeof message === 'string' ? message : message.buffer
 
       websocketListeners.onMessage(createWSMessageEvent(normalizedReceiveData), createWSContext(ws))
+    }
+  },
+  // Bun only traps handler exceptions when `error` is present on the websocket
+  // object passed to Bun.serve(); without it, throws become process-fatal (#5598).
+  error(ws, error) {
+    const websocketListeners = ws.data.events
+    if (websocketListeners.onError) {
+      websocketListeners.onError(
+        new ErrorEvent('error', { error, message: error.message }),
+        createWSContext(ws)
+      )
     }
   },
 }

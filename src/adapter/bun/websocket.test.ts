@@ -25,6 +25,8 @@ describe('upgradeWebSocket()', () => {
   beforeAll(() => {
     // @ts-expect-error patch global
     globalThis.CloseEvent = Event
+    // @ts-expect-error patch global
+    globalThis.ErrorEvent = Event
   })
   afterAll(() => {
     // @ts-expect-error patch global
@@ -162,5 +164,29 @@ describe('createBunWebSocket()', () => {
     const result = createBunWebSocket()
     expect(result.upgradeWebSocket).toBe(upgradeWebSocket)
     expect(result.websocket).toBe(websocket)
+  })
+})
+
+describe('websocket.error (#5598)', () => {
+  beforeAll(() => {
+    // @ts-expect-error patch global
+    globalThis.ErrorEvent = Event
+  })
+  it('Should call onError when Bun invokes the error handler', () => {
+    const onError = vi.fn()
+    const ws = {
+      data: {
+        events: { onError },
+        url: new URL('http://localhost'),
+        protocol: '',
+      },
+      readyState: 1,
+      send() {},
+      close() {},
+    } as unknown as BunServerWebSocket<BunWebSocketData>
+
+    const err = new Error('boom')
+    websocket.error(ws, err)
+    expect(onError).toBeCalled()
   })
 })
