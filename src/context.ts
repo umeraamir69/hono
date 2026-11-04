@@ -415,7 +415,9 @@ export class Context<
     if (this.#res && _res) {
       _res = createResponseInstance(_res.body, _res)
       for (const [k, v] of this.#res.headers.entries()) {
-        if (k === 'content-type') {
+        // New response owns its type / encoding / length; do not copy those from
+        // the previous body (e.g. onError after compress — #5612).
+        if (k === 'content-type' || k === 'content-encoding' || k === 'content-length') {
           continue
         }
         if (k === 'set-cookie') {
@@ -612,6 +614,12 @@ export class Context<
     headers?: HeaderRecord
   ): Response {
     let responseHeaders = this.#res ? new Headers(this.#res.headers) : this.#preparedHeaders
+    // A new body is not the previous representation. Drop encoding / length that
+    // still describe the old payload (e.g. onError after compress — #5612).
+    if (this.#res && responseHeaders) {
+      responseHeaders.delete('content-encoding')
+      responseHeaders.delete('content-length')
+    }
 
     if (typeof arg === 'object' && arg.headers) {
       responseHeaders ??= new Headers()
