@@ -124,6 +124,43 @@ describe('Hooks', () => {
         action: null,
       })
     })
+
+    it('clears pending when the form action rejects', async () => {
+      let formReject: (error: Error) => void = () => {}
+      const formPromise = new Promise<void>((_, reject) => {
+        formReject = reject
+      })
+      let status: ReturnType<typeof useFormStatus> | undefined
+      const Status = () => {
+        status = useFormStatus()
+        return null
+      }
+      const App = () => {
+        const action = useCallback(() => formPromise, [])
+        return (
+          <form action={action}>
+            <Status />
+            <button>Submit</button>
+          </form>
+        )
+      }
+
+      render(<App />, root)
+      root.querySelector('button')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(status?.pending).toBe(true)
+      formReject(new Error('action failed'))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(status).toEqual({
+        pending: false,
+        data: null,
+        method: null,
+        action: null,
+      })
+    })
   })
 
   describe('useOptimistic', () => {
