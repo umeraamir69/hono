@@ -89,17 +89,39 @@ export const compress = (options?: CompressionOptions): MiddlewareHandler => {
     await next()
 
     const contentLength = ctx.res.headers.get('Content-Length')
+    const isHead = ctx.req.method === 'HEAD'
 
     // Check if response should be compressed
     if (
       ctx.res.status === 206 || // partial content, Content-Range refers to the uncompressed bytes
       ctx.res.headers.has('Content-Encoding') || // already encoded
       ctx.res.headers.has('Transfer-Encoding') || // already encoded or chunked
-      ctx.req.method === 'HEAD' || // HEAD request
-      (contentLength && Number(contentLength) < threshold) || // content-length below threshold
-      !shouldCompress(ctx.res) || // not compressible type
-      !shouldTransform(ctx.res) // cache-control: no-transform
+      (isHead &&
+        (!contentLength ||
+          ctx.res.status === 204 ||
+          ctx.res.status === 205 ||
+          ctx.res.status === 304)) ||
+      (contentLength && Number(contentLength) < threshold) // content-length below threshold
     ) {
+      return
+    }
+
+    // HEAD: negotiate as GET would, but only to decide whether the advertised
+    // Content-Length would become wrong. Do not create a CompressionStream.
+    if (isHead) {
+      const encoding = selectEncoding(ctx.req.header('Accept-Encoding'), candidates)
+      if (!encoding || !shouldTransform(ctx.res) || !shouldCompress(ctx.res)) {
+        return
+      }
+      // Recreate when the body cannot be cloned by ctx.header() (locked/consumed).
+      if (ctx.res.bodyUsed || ctx.res.body?.locked) {
+        ctx.res = new Response(null, ctx.res)
+      }
+      ctx.header('Content-Length', undefined)
+      return
+    }
+
+    if (!shouldCompress(ctx.res) || !shouldTransform(ctx.res)) {
       return
     }
 
